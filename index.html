@@ -7,6 +7,7 @@
 <title>Jps Astro Research </title>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 
 
@@ -2034,7 +2035,7 @@ body.dark #currentPlanetBhavaTable tr.cpbh-anthra td{
   background:#102d4d !important;border-color:#3b82f6 !important;color:#bfdbfe !important;
 }
 
-/* ===== JPS ASTRO LICENSE GATE ===== */
+/* ===== JPS ASTRO GOOGLE LOGIN + LICENSE GATE ===== */
 #jpLicenseGate{
   position:fixed;inset:0;z-index:1000000;display:grid;place-items:center;
   padding:24px;box-sizing:border-box;
@@ -2049,35 +2050,62 @@ body.dark #jpLicenseGate{background:linear-gradient(180deg,#0b0f14 0%,#111827 10
 .jp-license-logo{width:min(260px,75%);max-height:110px;object-fit:contain;margin:0 auto 10px;display:block}
 .jp-license-title{font-size:24px;font-weight:900;color:var(--brand,#175397);margin:4px 0 6px}
 .jp-license-sub{color:var(--muted,#475569);margin:0 0 18px}
+.jp-google-btn{
+  width:100%;display:flex;align-items:center;justify-content:center;gap:10px;
+  padding:13px 16px;border-radius:12px;border:1px solid #cbd5e1;
+  background:#fff;color:#1f2937;font-weight:800;font-size:16px;cursor:pointer;
+  box-shadow:0 1px 2px rgba(0,0,0,.05);
+}
+.jp-google-btn:hover{background:#f8fafc}
+.jp-google-btn:disabled{opacity:.65;cursor:wait}
+.jp-google-icon{width:20px;height:20px;display:block}
+body.dark .jp-google-btn{background:#0f141b;color:var(--ink);border-color:#2b3642}
+.jp-login-or{display:flex;align-items:center;gap:10px;margin:14px 0;color:var(--muted);font-size:12px}
+.jp-login-or::before,.jp-login-or::after{content:"";height:1px;flex:1;background:var(--outline)}
 .jp-license-input{
-  width:100%;box-sizing:border-box;padding:13px 14px;border:1px solid #cbd5e1;
-  border-radius:12px;background:#fff;color:#111827;font-size:17px;text-align:center;
+  width:100%;box-sizing:border-box;padding:12px 14px;border:1px solid #cbd5e1;
+  border-radius:12px;background:#fff;color:#111827;font-size:16px;text-align:center;
   letter-spacing:1px;text-transform:uppercase;outline:none;
 }
 body.dark .jp-license-input{background:#0f141b;color:var(--ink);border-color:#2b3642}
-.jp-license-btn{margin-top:12px;width:100%;padding:12px 16px;border-radius:12px;border:1px solid #0d3b6f;background:#175397;color:#fff;font-weight:800;font-size:16px;cursor:pointer}
-.jp-license-btn:disabled{opacity:.65;cursor:wait}
+.jp-license-pass-btn{margin-top:9px;width:100%;padding:10px 16px;border-radius:12px;border:1px solid #64748b;background:transparent;color:var(--ink);font-weight:800;cursor:pointer}
+.jp-license-pass-btn:disabled{opacity:.65;cursor:wait}
 #jpLicenseMsg{margin-top:10px;min-height:22px;font-weight:700}
 .jp-license-status{margin-top:12px;padding:9px 10px;border-radius:10px;background:rgba(23,83,151,.07);color:var(--muted);font-size:13px}
 .jp-license-expiry{margin-top:10px;font-weight:800;color:#17671a}
 body.dark .jp-license-expiry{color:#4ade80}
 .jp-license-hide{display:none!important}
-
+.jp-account{margin-top:12px;font-size:13px;color:var(--muted)}
+.jp-account strong{color:var(--ink)}
 </style>
 
 </head>
 <body>
 
-<!-- ===== JPS ASTRO LICENSE GATE ===== -->
+<!-- ===== JPS ASTRO GOOGLE LOGIN + LICENSE GATE ===== -->
 <div id="jpLicenseGate" aria-modal="true" role="dialog">
   <div class="jp-license-card">
     <img class="jp-license-logo" src="jp-astro-research-logo.png" alt="JP's Astro Research" onerror="this.style.display='none'">
     <div class="jp-license-title">JPS Astro Research</div>
-    <p class="jp-license-sub">Enter your passcode to continue</p>
-    <input id="jpLicenseInput" class="jp-license-input" type="text" inputmode="text" autocomplete="off" spellcheck="false" placeholder="Enter Passcode">
-    <button id="jpLicenseVerify" class="jp-license-btn" type="button">VERIFY PASSCODE</button>
+    <p class="jp-license-sub">Sign in with Google to continue</p>
+
+    <button id="jpGoogleLogin" class="jp-google-btn" type="button">
+      <svg class="jp-google-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path fill="#4285F4" d="M21.35 12.23c0-.79-.07-1.55-.22-2.27H12v4.3h5.24a4.48 4.48 0 0 1-1.94 2.94v2.45h3.14c1.84-1.69 2.91-4.18 2.91-7.42z"/>
+        <path fill="#34A853" d="M12 21.67c2.63 0 4.84-.87 6.45-2.35l-3.14-2.45c-.87.58-1.98.92-3.31.92-2.54 0-4.69-1.72-5.46-4.03H3.3v2.53A9.75 9.75 0 0 0 12 21.67z"/>
+        <path fill="#FBBC05" d="M6.54 13.76a5.86 5.86 0 0 1 0-3.52V7.71H3.3a9.74 9.74 0 0 0 0 8.58l3.24-2.53z"/>
+        <path fill="#EA4335" d="M12 6.21c1.43 0 2.72.49 3.73 1.46l2.8-2.8C16.84 3.3 14.63 2.33 12 2.33a9.75 9.75 0 0 0-8.7 5.38l3.24 2.53C7.31 7.93 9.46 6.21 12 6.21z"/>
+      </svg>
+      <span>Sign in with Google</span>
+    </button>
+
+    <div class="jp-login-or"><span>OR</span></div>
+    <input id="jpLicenseInput" class="jp-license-input" type="text" inputmode="text" autocomplete="off" spellcheck="false" placeholder="Passcode (optional)">
+    <button id="jpLicenseVerify" class="jp-license-pass-btn" type="button">Use Passcode</button>
+
     <div id="jpLicenseMsg" aria-live="polite"></div>
     <div id="jpLicenseExpiry" class="jp-license-expiry"></div>
+    <div id="jpLicenseAccount" class="jp-account" style="display:none"></div>
     <div class="jp-license-status">30 minutes • 1 day • 1 month • 12 months</div>
   </div>
 </div>
@@ -11773,10 +11801,12 @@ document.getElementById('caldate')?.addEventListener('change',()=>{
 
 <script>
 /* =========================================================
-   JPS ASTRO SUPABASE LICENSE GATE
-   Replace the two placeholders below with your Supabase
-   Project URL and Publishable (anon) key.
-   NEVER put a service_role/secret key in this HTML.
+   JPS ASTRO — GOOGLE LOGIN + SUPABASE LICENSE CHECK
+   - Google OAuth is handled by Supabase Auth.
+   - The browser contains only the publishable key.
+   - Client Secret MUST NOT be placed in this HTML.
+   - Google access is allowed only when the Google email has
+     an active license row in public.licenses.
    ========================================================= */
 (function(){
   const SUPABASE_URL = 'https://grbyzrmrvwzytxkyiqcg.supabase.co';
@@ -11785,17 +11815,18 @@ document.getElementById('caldate')?.addEventListener('change',()=>{
   const STORAGE_EXPIRY = 'jpsAstroLicenseExpiry';
 
   const gate = document.getElementById('jpLicenseGate');
+  const googleBtn = document.getElementById('jpGoogleLogin');
   const input = document.getElementById('jpLicenseInput');
   const btn = document.getElementById('jpLicenseVerify');
   const msg = document.getElementById('jpLicenseMsg');
   const expiryEl = document.getElementById('jpLicenseExpiry');
-  if(!gate || !input || !btn) return;
+  const accountEl = document.getElementById('jpLicenseAccount');
+  if(!gate || !googleBtn || !input || !btn) return;
 
-  function configured(){
-    return SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY &&
-      !SUPABASE_URL.includes('YOUR_SUPABASE') &&
-      !SUPABASE_PUBLISHABLE_KEY.includes('YOUR_SUPABASE');
-  }
+  const sb = (window.supabase && typeof window.supabase.createClient==='function')
+    ? window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}})
+    : null;
+
   function setMsg(text,ok=false){
     msg.textContent=text||'';
     msg.style.color=ok?'#17671a':'#b00020';
@@ -11817,87 +11848,119 @@ document.getElementById('caldate')?.addEventListener('change',()=>{
     try{localStorage.removeItem(STORAGE_CODE);localStorage.removeItem(STORAGE_EXPIRY);}catch(e){}
   }
   function saveLicense(code,expires){
-    try{localStorage.setItem(STORAGE_CODE,code);localStorage.setItem(STORAGE_EXPIRY,expires);}catch(e){}
+    try{localStorage.setItem(STORAGE_CODE,code||'');localStorage.setItem(STORAGE_EXPIRY,expires||'');}catch(e){}
   }
 
-  async function verify(code){
-    if(!configured()) throw new Error('Supabase license settings are not configured yet.');
+  async function verifyPasscode(code){
     const url=SUPABASE_URL.replace(/\/$/,'')+'/rest/v1/rpc/verify_license';
     const res=await fetch(url,{
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'apikey':SUPABASE_PUBLISHABLE_KEY,
-        'Authorization':'Bearer '+SUPABASE_PUBLISHABLE_KEY
-      },
-      body:JSON.stringify({p_passcode:code})
+      method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_PUBLISHABLE_KEY,'Authorization':'Bearer '+SUPABASE_PUBLISHABLE_KEY},
+      body:JSON.stringify({p_passcode:(code||'').trim().toUpperCase()})
     });
-    const text=await res.text();
-    let data=null; try{data=JSON.parse(text)}catch(e){}
+    const text=await res.text(); let data=null; try{data=JSON.parse(text)}catch(e){}
     if(!res.ok) throw new Error(data?.message||data?.hint||('Supabase error '+res.status));
     return data;
   }
 
-  async function checkCode(code,initial=false){
-    code=(code||'').trim().toUpperCase();
-    if(!code){setMsg('Please enter a passcode.');return false;}
-    btn.disabled=true;
-    if(!initial) setMsg('Checking passcode...',true);
+  async function verifyEmail(email){
+    if(!sb) throw new Error('Supabase Auth library did not load.');
+    const {data,error}=await sb.rpc('verify_license_email',{p_email:String(email||'').trim().toLowerCase()});
+    if(error) throw error;
+    return data;
+  }
+
+  async function finishWithEmail(user){
+    const email=String(user?.email||'').trim().toLowerCase();
+    if(!email){ throw new Error('Google did not provide an email address.'); }
+    setMsg('Checking your JPS Astro license...',true);
+    const r=await verifyEmail(email);
+    if(!r?.valid){
+      expiryEl.textContent='';
+      setMsg(r?.reason==='expired'?'Your JPS Astro license has expired.':'No active JPS Astro license is linked to this Google account.');
+      if(accountEl){accountEl.style.display='block';accountEl.innerHTML='Signed in as <strong>'+email.replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))+'</strong>'; }
+      await sb.signOut();
+      lockApp();
+      return false;
+    }
+    if(accountEl){accountEl.style.display='block';accountEl.innerHTML='Signed in as <strong>'+email.replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))+'</strong>'; }
+    expiryEl.textContent=formatExpiry(r.expires_at);
+    setMsg('✓ Google login successful — '+(r.plan||'License active'),true);
+    openApp();
+    return true;
+  }
+
+  async function googleLogin(){
+    if(!sb){setMsg('Supabase Auth library did not load.');return;}
+    googleBtn.disabled=true; setMsg('Opening Google sign-in...',true);
     try{
-      const r=await verify(code);
+      const redirectTo=window.location.origin+window.location.pathname;
+      const {error}=await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo}});
+      if(error) throw error;
+    }catch(e){
+      console.error(e); setMsg(e?.message||'Google sign-in failed.'); googleBtn.disabled=false;
+    }
+  }
+
+  async function checkPasscode(){
+    const code=(input.value||'').trim().toUpperCase();
+    if(!code){setMsg('Please enter a passcode or use Google sign-in.');return;}
+    btn.disabled=true; setMsg('Checking passcode...',true);
+    try{
+      const r=await verifyPasscode(code);
       if(!r?.valid){
         clearSaved(); expiryEl.textContent='';
         setMsg(r?.reason==='expired'?'This passcode has expired.':'Invalid or inactive passcode.');
-        lockApp();
-        return false;
+        lockApp(); return;
       }
-      saveLicense(code,r.expires_at);
-      expiryEl.textContent=formatExpiry(r.expires_at);
-      setMsg('✓ License active — '+(r.plan||'').toString(),true);
-      openApp();
-      return true;
-    }catch(e){
-      setMsg(e?.message||'Unable to verify passcode.');
-      lockApp();
-      return false;
-    }finally{btn.disabled=false;}
+      saveLicense(code,r.expires_at); expiryEl.textContent=formatExpiry(r.expires_at);
+      setMsg('✓ License active — '+(r.plan||''),true); openApp();
+    }catch(e){setMsg(e?.message||'Unable to verify passcode.');lockApp();}
+    finally{btn.disabled=false;}
   }
 
   async function startup(){
     lockApp();
-    const saved=(()=>{try{return localStorage.getItem(STORAGE_CODE)||''}catch(e){return ''}})();
-    const savedExpiry=(()=>{try{return localStorage.getItem(STORAGE_EXPIRY)||''}catch(e){return ''}})();
-    if(saved && savedExpiry && Date.parse(savedExpiry)>Date.now()){
-      // Server re-check is still required; localStorage only avoids retyping.
-      input.value=saved;
-      await checkCode(saved,true);
-    }else if(saved){
-      clearSaved();
-      setMsg('Your previous license has expired. Please enter a new passcode.');
-    }
+    if(!sb){setMsg('Supabase Auth library did not load.');return;}
+    try{
+      const {data,error}=await sb.auth.getSession();
+      if(error) throw error;
+      if(data?.session?.user){
+        googleBtn.disabled=true;
+        try{await finishWithEmail(data.session.user);}finally{googleBtn.disabled=false;}
+        return;
+      }
+      // Optional legacy passcode: avoid forcing users to retype a still-valid code.
+      const saved=(()=>{try{return localStorage.getItem(STORAGE_CODE)||''}catch(e){return ''}})();
+      const savedExpiry=(()=>{try{return localStorage.getItem(STORAGE_EXPIRY)||''}catch(e){return ''}})();
+      if(saved && savedExpiry && Date.parse(savedExpiry)>Date.now()){
+        input.value=saved; await checkPasscode();
+      }else if(saved){
+        clearSaved(); setMsg('Your previous passcode has expired. You can sign in with Google.');
+      }
+    }catch(e){console.error('Auth startup failed:',e);setMsg(e?.message||'Unable to start login.');}
   }
 
-  btn.addEventListener('click',()=>checkCode(input.value));
-  input.addEventListener('keydown',e=>{if(e.key==='Enter') checkCode(input.value);});
+  googleBtn.addEventListener('click',googleLogin);
+  btn.addEventListener('click',checkPasscode);
+  input.addEventListener('keydown',e=>{if(e.key==='Enter')checkPasscode();});
 
-  // Keep checking every minute while the page is open.
-  setInterval(async()=>{
-    const code=(()=>{try{return localStorage.getItem(STORAGE_CODE)||''}catch(e){return ''}})();
-    if(!code) return;
-    const exp=(()=>{try{return localStorage.getItem(STORAGE_EXPIRY)||''}catch(e){return ''}})();
-    if(exp && Date.parse(exp)<=Date.now()){
-      clearSaved();
-      lockApp();
-      expiryEl.textContent='';
-      setMsg('Your license has expired. Please enter a new passcode.');
-      return;
-    }
-    // Server validation once every 5 minutes is enough for normal use.
-  },60000);
+  if(sb){
+    sb.auth.onAuthStateChange(async(event,session)=>{
+      if(event==='SIGNED_IN' && session?.user){
+        try{await finishWithEmail(session.user);}catch(e){console.error(e);setMsg(e?.message||'License check failed.');lockApp();}
+      }else if(event==='SIGNED_OUT'){
+        lockApp(); expiryEl.textContent=''; accountEl.style.display='none';
+      }
+    });
+  }
+
+  window.jpGoogleSignOut=async function(){
+    if(sb) await sb.auth.signOut();
+    clearSaved(); lockApp();
+  };
 
   startup();
-})();
-</script>
+})();</script>
 
 </body>
 </html>
