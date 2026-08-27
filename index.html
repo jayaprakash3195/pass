@@ -11808,7 +11808,7 @@ document.getElementById('caldate')?.addEventListener('change',()=>{
 (function(){
   const SUPABASE_URL = 'https://grbyzrmrvwzytxkyiqcg.supabase.co';
   const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_RjTUH6Y5LUUSThYYz05kLA_7tcuh7mh';
-  const PRODUCTION_REDIRECT = 'https://jayprakash3195.github.io/pass/';
+  const PRODUCTION_REDIRECT = 'https://jayprakash3195.github.io/pass/auth-callback.html';
   const STORAGE_CODE = 'jpsAstroLicensePasscode';
   const STORAGE_EXPIRY = 'jpsAstroLicenseExpiry';
 
@@ -11871,7 +11871,7 @@ document.getElementById('caldate')?.addEventListener('change',()=>{
 
   function cleanOAuthUrl(){
     try{
-      const cleanUrl = PRODUCTION_REDIRECT;
+      const cleanUrl = 'https://jayprakash3195.github.io/pass/';
       window.history.replaceState({}, document.title, cleanUrl);
     }catch(e){}
   }
