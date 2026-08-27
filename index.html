@@ -806,9 +806,9 @@ body.dark .planet-current {
 body.boot #gate,
 body.boot #app { display: none !important; }
 
-/* Default: JS decides which one to show */
-#app { display:block !important; }
-#gate { display:none !important; }
+/* Auth gate visibility is controlled by the dedicated JPS license gate. */
+#app { display:block; }
+#gate { display:block; }
 /* Login inputs */
 #gate .field input[type="email"],
 #gate .field input[type="password"]{
@@ -11802,15 +11802,13 @@ document.getElementById('caldate')?.addEventListener('change',()=>{
 <script>
 /* =========================================================
    JPS ASTRO — GOOGLE LOGIN + SUPABASE LICENSE CHECK
-   - Google OAuth is handled by Supabase Auth.
-   - The browser contains only the publishable key.
-   - Client Secret MUST NOT be placed in this HTML.
-   - Google access is allowed only when the Google email has
-     an active license row in public.licenses.
+   Production callback is fixed to GitHub Pages so OAuth never
+   sends a production login back to localhost.
    ========================================================= */
 (function(){
   const SUPABASE_URL = 'https://grbyzrmrvwzytxkyiqcg.supabase.co';
   const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_RjTUH6Y5LUUSThYYz05kLA_7tcuh7mh';
+  const PRODUCTION_REDIRECT = 'https://jayprakash3195.github.io/pass';
   const STORAGE_CODE = 'jpsAstroLicensePasscode';
   const STORAGE_EXPIRY = 'jpsAstroLicenseExpiry';
 
@@ -11821,146 +11819,367 @@ document.getElementById('caldate')?.addEventListener('change',()=>{
   const msg = document.getElementById('jpLicenseMsg');
   const expiryEl = document.getElementById('jpLicenseExpiry');
   const accountEl = document.getElementById('jpLicenseAccount');
+
   if(!gate || !googleBtn || !input || !btn) return;
 
-  const sb = (window.supabase && typeof window.supabase.createClient==='function')
-    ? window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}})
+  const sb = (window.supabase && typeof window.supabase.createClient === 'function')
+    ? window.supabase.createClient(
+        SUPABASE_URL,
+        SUPABASE_PUBLISHABLE_KEY,
+        {
+          auth:{
+            persistSession:true,
+            autoRefreshToken:true,
+            detectSessionInUrl:true,
+            flowType:'implicit'
+          }
+        }
+      )
     : null;
 
-  function setMsg(text,ok=false){
-    msg.textContent=text||'';
-    msg.style.color=ok?'#17671a':'#b00020';
+  let licenseCheckRunning = false;
+
+  function setMsg(text, ok=false){
+    if(!msg) return;
+    msg.textContent = text || '';
+    msg.style.color = ok ? '#17671a' : '#b00020';
   }
+
   function formatExpiry(iso){
-    const d=new Date(iso);
+    const d = new Date(iso);
     if(Number.isNaN(d.getTime())) return '';
-    return 'Valid until: '+d.toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'});
+    return 'Valid until: ' + d.toLocaleString('en-IN',{
+      dateStyle:'medium',
+      timeStyle:'short'
+    });
   }
+
   function openApp(){
     gate.classList.add('jp-license-hide');
-    document.documentElement.dataset.jpLicense='valid';
+    document.documentElement.dataset.jpLicense = 'valid';
   }
+
   function lockApp(){
     gate.classList.remove('jp-license-hide');
-    document.documentElement.dataset.jpLicense='invalid';
+    document.documentElement.dataset.jpLicense = 'invalid';
   }
+
   function clearSaved(){
-    try{localStorage.removeItem(STORAGE_CODE);localStorage.removeItem(STORAGE_EXPIRY);}catch(e){}
+    try{
+      localStorage.removeItem(STORAGE_CODE);
+      localStorage.removeItem(STORAGE_EXPIRY);
+    }catch(e){}
   }
-  function saveLicense(code,expires){
-    try{localStorage.setItem(STORAGE_CODE,code||'');localStorage.setItem(STORAGE_EXPIRY,expires||'');}catch(e){}
+
+  function saveLicense(code, expires){
+    try{
+      localStorage.setItem(STORAGE_CODE, code || '');
+      localStorage.setItem(STORAGE_EXPIRY, expires || '');
+    }catch(e){}
+  }
+
+  function cleanOAuthUrl(){
+    /* Remove access_token / refresh_token from the address bar
+       after Supabase has processed the callback. */
+    try{
+      const cleanUrl = window.location.origin + window.location.pathname;
+      window.history.replaceState({}, document.title, cleanUrl);
+    }catch(e){}
   }
 
   async function verifyPasscode(code){
-    const url=SUPABASE_URL.replace(/\/$/,'')+'/rest/v1/rpc/verify_license';
-    const res=await fetch(url,{
-      method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_PUBLISHABLE_KEY,'Authorization':'Bearer '+SUPABASE_PUBLISHABLE_KEY},
-      body:JSON.stringify({p_passcode:(code||'').trim().toUpperCase()})
+    const url = SUPABASE_URL.replace(/\/$/,'') + '/rest/v1/rpc/verify_license';
+
+    const res = await fetch(url,{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'apikey':SUPABASE_PUBLISHABLE_KEY,
+        'Authorization':'Bearer ' + SUPABASE_PUBLISHABLE_KEY
+      },
+      body:JSON.stringify({
+        p_passcode:(code || '').trim().toUpperCase()
+      })
     });
-    const text=await res.text(); let data=null; try{data=JSON.parse(text)}catch(e){}
-    if(!res.ok) throw new Error(data?.message||data?.hint||('Supabase error '+res.status));
+
+    const text = await res.text();
+    let data = null;
+    try{ data = JSON.parse(text); }catch(e){}
+
+    if(!res.ok){
+      throw new Error(
+        data?.message ||
+        data?.hint ||
+        ('Supabase error ' + res.status)
+      );
+    }
+
     return data;
   }
 
   async function verifyEmail(email){
     if(!sb) throw new Error('Supabase Auth library did not load.');
-    const {data,error}=await sb.rpc('verify_license_email',{p_email:String(email||'').trim().toLowerCase()});
+
+    const {data,error} = await sb.rpc(
+      'verify_license_email',
+      {p_email:String(email || '').trim().toLowerCase()}
+    );
+
     if(error) throw error;
     return data;
   }
 
   async function finishWithEmail(user){
-    const email=String(user?.email||'').trim().toLowerCase();
-    if(!email){ throw new Error('Google did not provide an email address.'); }
-    setMsg('Checking your JPS Astro license...',true);
-    const r=await verifyEmail(email);
-    if(!r?.valid){
-      expiryEl.textContent='';
-      setMsg(r?.reason==='expired'?'Your JPS Astro license has expired.':'No active JPS Astro license is linked to this Google account.');
-      if(accountEl){accountEl.style.display='block';accountEl.innerHTML='Signed in as <strong>'+email.replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))+'</strong>'; }
-      await sb.signOut();
-      lockApp();
-      return false;
+    if(licenseCheckRunning) return false;
+    licenseCheckRunning = true;
+
+    try{
+      const email = String(user?.email || '').trim().toLowerCase();
+
+      if(!email){
+        throw new Error('Google did not provide an email address.');
+      }
+
+      setMsg('Checking your JPS Astro license...', true);
+
+      const r = await verifyEmail(email);
+
+      if(!r?.valid){
+        expiryEl.textContent = '';
+
+        setMsg(
+          r?.reason === 'expired'
+            ? 'Your JPS Astro license has expired.'
+            : 'No active JPS Astro license is linked to this Google account.'
+        );
+
+        if(accountEl){
+          const safeEmail = email.replace(/[&<>"']/g, m => ({
+            '&':'&amp;',
+            '<':'&lt;',
+            '>':'&gt;',
+            '"':'&quot;',
+            "'":'&#39;'
+          }[m]));
+
+          accountEl.style.display = 'block';
+          accountEl.innerHTML = 'Signed in as <strong>' + safeEmail + '</strong>';
+        }
+
+        await sb.signOut();
+        lockApp();
+        return false;
+      }
+
+      if(accountEl){
+        const safeEmail = email.replace(/[&<>"']/g, m => ({
+          '&':'&amp;',
+          '<':'&lt;',
+          '>':'&gt;',
+          '"':'&quot;',
+          "'":'&#39;'
+        }[m]));
+
+        accountEl.style.display = 'block';
+        accountEl.innerHTML = 'Signed in as <strong>' + safeEmail + '</strong>';
+      }
+
+      expiryEl.textContent = formatExpiry(r.expires_at);
+      setMsg('✓ Google login successful — ' + (r.plan || 'License active'), true);
+      openApp();
+
+      return true;
+
+    }finally{
+      licenseCheckRunning = false;
     }
-    if(accountEl){accountEl.style.display='block';accountEl.innerHTML='Signed in as <strong>'+email.replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))+'</strong>'; }
-    expiryEl.textContent=formatExpiry(r.expires_at);
-    setMsg('✓ Google login successful — '+(r.plan||'License active'),true);
-    openApp();
-    return true;
   }
 
   async function googleLogin(){
-    if(!sb){setMsg('Supabase Auth library did not load.');return;}
-    googleBtn.disabled=true; setMsg('Opening Google sign-in...',true);
+    if(!sb){
+      setMsg('Supabase Auth library did not load.');
+      return;
+    }
+
+    googleBtn.disabled = true;
+    setMsg('Opening Google sign-in...', true);
+
     try{
-      const redirectTo=window.location.origin+window.location.pathname;
-      const {error}=await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo}});
+      /*
+       * IMPORTANT:
+       * Always return to the live GitHub Pages site.
+       * This prevents the production OAuth flow from returning to
+       * localhost:3000 when the button is tested from a local copy.
+       */
+      const {error} = await sb.auth.signInWithOAuth({
+        provider:'google',
+        options:{
+          redirectTo:PRODUCTION_REDIRECT
+        }
+      });
+
       if(error) throw error;
+
     }catch(e){
-      console.error(e); setMsg(e?.message||'Google sign-in failed.'); googleBtn.disabled=false;
+      console.error('Google sign-in failed:', e);
+      setMsg(e?.message || 'Google sign-in failed.');
+      googleBtn.disabled = false;
     }
   }
 
   async function checkPasscode(){
-    const code=(input.value||'').trim().toUpperCase();
-    if(!code){setMsg('Please enter a passcode or use Google sign-in.');return;}
-    btn.disabled=true; setMsg('Checking passcode...',true);
+    const code = (input.value || '').trim().toUpperCase();
+
+    if(!code){
+      setMsg('Please enter a passcode or use Google sign-in.');
+      return;
+    }
+
+    btn.disabled = true;
+    setMsg('Checking passcode...', true);
+
     try{
-      const r=await verifyPasscode(code);
+      const r = await verifyPasscode(code);
+
       if(!r?.valid){
-        clearSaved(); expiryEl.textContent='';
-        setMsg(r?.reason==='expired'?'This passcode has expired.':'Invalid or inactive passcode.');
-        lockApp(); return;
+        clearSaved();
+        expiryEl.textContent = '';
+        setMsg(
+          r?.reason === 'expired'
+            ? 'This passcode has expired.'
+            : 'Invalid or inactive passcode.'
+        );
+        lockApp();
+        return;
       }
-      saveLicense(code,r.expires_at); expiryEl.textContent=formatExpiry(r.expires_at);
-      setMsg('✓ License active — '+(r.plan||''),true); openApp();
-    }catch(e){setMsg(e?.message||'Unable to verify passcode.');lockApp();}
-    finally{btn.disabled=false;}
+
+      saveLicense(code, r.expires_at);
+      expiryEl.textContent = formatExpiry(r.expires_at);
+      setMsg('✓ License active — ' + (r.plan || ''), true);
+      openApp();
+
+    }catch(e){
+      console.error('Passcode verification failed:', e);
+      setMsg(e?.message || 'Unable to verify passcode.');
+      lockApp();
+
+    }finally{
+      btn.disabled = false;
+    }
   }
 
   async function startup(){
     lockApp();
-    if(!sb){setMsg('Supabase Auth library did not load.');return;}
+
+    if(!sb){
+      setMsg('Supabase Auth library did not load.');
+      return;
+    }
+
     try{
-      const {data,error}=await sb.auth.getSession();
+      const {data,error} = await sb.auth.getSession();
+
       if(error) throw error;
+
       if(data?.session?.user){
-        googleBtn.disabled=true;
-        try{await finishWithEmail(data.session.user);}finally{googleBtn.disabled=false;}
+        await finishWithEmail(data.session.user);
+        cleanOAuthUrl();
         return;
       }
-      // Optional legacy passcode: avoid forcing users to retype a still-valid code.
-      const saved=(()=>{try{return localStorage.getItem(STORAGE_CODE)||''}catch(e){return ''}})();
-      const savedExpiry=(()=>{try{return localStorage.getItem(STORAGE_EXPIRY)||''}catch(e){return ''}})();
-      if(saved && savedExpiry && Date.parse(savedExpiry)>Date.now()){
-        input.value=saved; await checkPasscode();
-      }else if(saved){
-        clearSaved(); setMsg('Your previous passcode has expired. You can sign in with Google.');
+
+      /* If an OAuth hash is still present, give Supabase a moment to
+         finish its URL/session processing before declaring no session. */
+      if(window.location.hash.includes('access_token=')){
+        setMsg('Completing Google sign-in...', true);
+
+        setTimeout(async()=>{
+          try{
+            const {data:later,error:laterError} = await sb.auth.getSession();
+
+            if(laterError) throw laterError;
+
+            if(later?.session?.user){
+              await finishWithEmail(later.session.user);
+            }else{
+              setMsg('Google sign-in completed, but no session was found. Please try again.');
+              lockApp();
+            }
+
+            cleanOAuthUrl();
+
+          }catch(e){
+            console.error('OAuth callback processing failed:', e);
+            setMsg(e?.message || 'Unable to complete Google sign-in.');
+            lockApp();
+          }
+        },500);
+
+        return;
       }
-    }catch(e){console.error('Auth startup failed:',e);setMsg(e?.message||'Unable to start login.');}
+
+      /* Optional legacy passcode */
+      const saved = (() => {
+        try{return localStorage.getItem(STORAGE_CODE) || '';}
+        catch(e){return '';}
+      })();
+
+      const savedExpiry = (() => {
+        try{return localStorage.getItem(STORAGE_EXPIRY) || '';}
+        catch(e){return '';}
+      })();
+
+      if(saved && savedExpiry && Date.parse(savedExpiry) > Date.now()){
+        input.value = saved;
+        await checkPasscode();
+
+      }else if(saved){
+        clearSaved();
+        setMsg('Your previous passcode has expired. You can sign in with Google.');
+      }
+
+    }catch(e){
+      console.error('Auth startup failed:', e);
+      setMsg(e?.message || 'Unable to start login.');
+      lockApp();
+    }
   }
 
-  googleBtn.addEventListener('click',googleLogin);
-  btn.addEventListener('click',checkPasscode);
-  input.addEventListener('keydown',e=>{if(e.key==='Enter')checkPasscode();});
+  googleBtn.addEventListener('click', googleLogin);
+  btn.addEventListener('click', checkPasscode);
+
+  input.addEventListener('keydown', e => {
+    if(e.key === 'Enter') checkPasscode();
+  });
 
   if(sb){
     sb.auth.onAuthStateChange(async(event,session)=>{
-      if(event==='SIGNED_IN' && session?.user){
-        try{await finishWithEmail(session.user);}catch(e){console.error(e);setMsg(e?.message||'License check failed.');lockApp();}
-      }else if(event==='SIGNED_OUT'){
-        lockApp(); expiryEl.textContent=''; accountEl.style.display='none';
+      if(event === 'SIGNED_IN' && session?.user){
+        try{
+          await finishWithEmail(session.user);
+          cleanOAuthUrl();
+        }catch(e){
+          console.error('License check failed:', e);
+          setMsg(e?.message || 'License check failed.');
+          lockApp();
+        }
+      }else if(event === 'SIGNED_OUT'){
+        lockApp();
+        expiryEl.textContent = '';
+        if(accountEl) accountEl.style.display = 'none';
       }
     });
   }
 
-  window.jpGoogleSignOut=async function(){
+  window.jpGoogleSignOut = async function(){
     if(sb) await sb.auth.signOut();
-    clearSaved(); lockApp();
+    clearSaved();
+    cleanOAuthUrl();
+    lockApp();
   };
 
   startup();
-})();</script>
+})();
+</script>
 
 </body>
 </html>
