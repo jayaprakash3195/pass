@@ -11801,9 +11801,9 @@ document.getElementById('caldate')?.addEventListener('change',()=>{
 
 <script>
 /* =========================================================
-   JPS ASTRO — GOOGLE LOGIN + SUPABASE LICENSE CHECK
-   Production callback is fixed to GitHub Pages so OAuth never
-   sends a production login back to localhost.
+   JPS ASTRO — GOOGLE LOGIN (ALL USERS) + OPTIONAL PASSCODE
+   Google login only identifies the visitor and opens the page.
+   Passcode verification remains separate for licensed/API access.
    ========================================================= */
 (function(){
   const SUPABASE_URL = 'https://grbyzrmrvwzytxkyiqcg.supabase.co';
@@ -11823,21 +11823,15 @@ document.getElementById('caldate')?.addEventListener('change',()=>{
   if(!gate || !googleBtn || !input || !btn) return;
 
   const sb = (window.supabase && typeof window.supabase.createClient === 'function')
-    ? window.supabase.createClient(
-        SUPABASE_URL,
-        SUPABASE_PUBLISHABLE_KEY,
-        {
-          auth:{
-            persistSession:true,
-            autoRefreshToken:true,
-            detectSessionInUrl:true,
-            flowType:'implicit'
-          }
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+        auth:{
+          persistSession:true,
+          autoRefreshToken:true,
+          detectSessionInUrl:true,
+          flowType:'implicit'
         }
-      )
+      })
     : null;
-
-  let licenseCheckRunning = false;
 
   function setMsg(text, ok=false){
     if(!msg) return;
@@ -11848,10 +11842,7 @@ document.getElementById('caldate')?.addEventListener('change',()=>{
   function formatExpiry(iso){
     const d = new Date(iso);
     if(Number.isNaN(d.getTime())) return '';
-    return 'Valid until: ' + d.toLocaleString('en-IN',{
-      dateStyle:'medium',
-      timeStyle:'short'
-    });
+    return 'Valid until: ' + d.toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'});
   }
 
   function openApp(){
@@ -11879,17 +11870,14 @@ document.getElementById('caldate')?.addEventListener('change',()=>{
   }
 
   function cleanOAuthUrl(){
-    /* Remove access_token / refresh_token from the address bar
-       after Supabase has processed the callback. */
     try{
-      const cleanUrl = window.location.origin + window.location.pathname;
+      const cleanUrl = PRODUCTION_REDIRECT;
       window.history.replaceState({}, document.title, cleanUrl);
     }catch(e){}
   }
 
   async function verifyPasscode(code){
     const url = SUPABASE_URL.replace(/\/$/,'') + '/rest/v1/rpc/verify_license';
-
     const res = await fetch(url,{
       method:'POST',
       headers:{
@@ -11897,121 +11885,55 @@ document.getElementById('caldate')?.addEventListener('change',()=>{
         'apikey':SUPABASE_PUBLISHABLE_KEY,
         'Authorization':'Bearer ' + SUPABASE_PUBLISHABLE_KEY
       },
-      body:JSON.stringify({
-        p_passcode:(code || '').trim().toUpperCase()
-      })
+      body:JSON.stringify({p_passcode:(code || '').trim().toUpperCase()})
     });
-
     const text = await res.text();
     let data = null;
     try{ data = JSON.parse(text); }catch(e){}
-
     if(!res.ok){
-      throw new Error(
-        data?.message ||
-        data?.hint ||
-        ('Supabase error ' + res.status)
-      );
+      throw new Error(data?.message || data?.hint || ('Supabase error ' + res.status));
     }
-
     return data;
   }
 
-  async function verifyEmail(email){
-    if(!sb) throw new Error('Supabase Auth library did not load.');
-
-    const {data,error} = await sb.rpc(
-      'verify_license_email',
-      {p_email:String(email || '').trim().toLowerCase()}
-    );
-
-    if(error) throw error;
-    return data;
-  }
-
-  async function finishWithEmail(user){
-    if(licenseCheckRunning) return false;
-    licenseCheckRunning = true;
-
-    try{
-      const email = String(user?.email || '').trim().toLowerCase();
-
-      if(!email){
-        throw new Error('Google did not provide an email address.');
-      }
-
-      setMsg('Checking your JPS Astro license...', true);
-
-      const r = await verifyEmail(email);
-
-      if(!r?.valid){
-        expiryEl.textContent = '';
-
-        setMsg(
-          r?.reason === 'expired'
-            ? 'Your JPS Astro license has expired.'
-            : 'No active JPS Astro license is linked to this Google account.'
-        );
-
-        if(accountEl){
-          const safeEmail = email.replace(/[&<>"']/g, m => ({
-            '&':'&amp;',
-            '<':'&lt;',
-            '>':'&gt;',
-            '"':'&quot;',
-            "'":'&#39;'
-          }[m]));
-
-          accountEl.style.display = 'block';
-          accountEl.innerHTML = 'Signed in as <strong>' + safeEmail + '</strong>';
-        }
-
-        await sb.signOut();
-        lockApp();
-        return false;
-      }
-
-      if(accountEl){
+  /* Google login is intentionally NOT checked against licenses.
+     Every Google-authenticated visitor is allowed to view the page. */
+  async function finishGoogleLogin(user){
+    const email = String(user?.email || '').trim().toLowerCase();
+    if(accountEl){
+      if(email){
         const safeEmail = email.replace(/[&<>"']/g, m => ({
-          '&':'&amp;',
-          '<':'&lt;',
-          '>':'&gt;',
-          '"':'&quot;',
-          "'":'&#39;'
+          '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
         }[m]));
-
         accountEl.style.display = 'block';
         accountEl.innerHTML = 'Signed in as <strong>' + safeEmail + '</strong>';
+      }else{
+        accountEl.style.display = 'none';
       }
-
-      expiryEl.textContent = formatExpiry(r.expires_at);
-      setMsg('✓ Google login successful — ' + (r.plan || 'License active'), true);
-      openApp();
-
-      return true;
-
-    }finally{
-      licenseCheckRunning = false;
     }
+    setMsg('✓ Google login successful — welcome!', true);
+    openApp();
   }
 
   async function googleLogin(){
+    if(!sb){
+      setMsg('Supabase Auth library did not load.');
+      return;
+    }
+
     googleBtn.disabled = true;
     setMsg('Opening Google sign-in...', true);
 
     try{
-      /*
-       * Use Supabase's OAuth authorize endpoint directly.
-       * This avoids browser/local-host redirect problems with
-       * signInWithOAuth() while keeping the callback on GitHub Pages.
-       */
-      const authorizeUrl =
-        SUPABASE_URL.replace(/\/$/,'') +
-        '/auth/v1/authorize?provider=google&redirect_to=' +
-        encodeURIComponent(PRODUCTION_REDIRECT);
-
-      window.location.assign(authorizeUrl);
-
+      const {data,error} = await sb.auth.signInWithOAuth({
+        provider:'google',
+        options:{
+          redirectTo:PRODUCTION_REDIRECT
+        }
+      });
+      if(error) throw error;
+      /* Browser redirect normally happens immediately. */
+      if(data?.url) window.location.assign(data.url);
     }catch(e){
       console.error('Google sign-in failed:', e);
       setMsg(e?.message || 'Google sign-in failed.');
@@ -12021,7 +11943,6 @@ document.getElementById('caldate')?.addEventListener('change',()=>{
 
   async function checkPasscode(){
     const code = (input.value || '').trim().toUpperCase();
-
     if(!code){
       setMsg('Please enter a passcode or use Google sign-in.');
       return;
@@ -12032,15 +11953,10 @@ document.getElementById('caldate')?.addEventListener('change',()=>{
 
     try{
       const r = await verifyPasscode(code);
-
       if(!r?.valid){
         clearSaved();
         expiryEl.textContent = '';
-        setMsg(
-          r?.reason === 'expired'
-            ? 'This passcode has expired.'
-            : 'Invalid or inactive passcode.'
-        );
+        setMsg(r?.reason === 'expired' ? 'This passcode has expired.' : 'Invalid or inactive passcode.');
         lockApp();
         return;
       }
@@ -12049,12 +11965,10 @@ document.getElementById('caldate')?.addEventListener('change',()=>{
       expiryEl.textContent = formatExpiry(r.expires_at);
       setMsg('✓ License active — ' + (r.plan || ''), true);
       openApp();
-
     }catch(e){
       console.error('Passcode verification failed:', e);
       setMsg(e?.message || 'Unable to verify passcode.');
       lockApp();
-
     }finally{
       btn.disabled = false;
     }
@@ -12062,7 +11976,6 @@ document.getElementById('caldate')?.addEventListener('change',()=>{
 
   async function startup(){
     lockApp();
-
     if(!sb){
       setMsg('Supabase Auth library did not load.');
       return;
@@ -12070,65 +11983,25 @@ document.getElementById('caldate')?.addEventListener('change',()=>{
 
     try{
       const {data,error} = await sb.auth.getSession();
-
       if(error) throw error;
 
       if(data?.session?.user){
-        await finishWithEmail(data.session.user);
+        await finishGoogleLogin(data.session.user);
         cleanOAuthUrl();
         return;
       }
 
-      /* If an OAuth hash is still present, give Supabase a moment to
-         finish its URL/session processing before declaring no session. */
-      if(window.location.hash.includes('access_token=')){
-        setMsg('Completing Google sign-in...', true);
-
-        setTimeout(async()=>{
-          try{
-            const {data:later,error:laterError} = await sb.auth.getSession();
-
-            if(laterError) throw laterError;
-
-            if(later?.session?.user){
-              await finishWithEmail(later.session.user);
-            }else{
-              setMsg('Google sign-in completed, but no session was found. Please try again.');
-              lockApp();
-            }
-
-            cleanOAuthUrl();
-
-          }catch(e){
-            console.error('OAuth callback processing failed:', e);
-            setMsg(e?.message || 'Unable to complete Google sign-in.');
-            lockApp();
-          }
-        },500);
-
-        return;
-      }
-
-      /* Optional legacy passcode */
-      const saved = (() => {
-        try{return localStorage.getItem(STORAGE_CODE) || '';}
-        catch(e){return '';}
-      })();
-
-      const savedExpiry = (() => {
-        try{return localStorage.getItem(STORAGE_EXPIRY) || '';}
-        catch(e){return '';}
-      })();
+      /* Legacy passcode is still supported for users who previously entered one. */
+      const saved = (() => { try{return localStorage.getItem(STORAGE_CODE) || '';}catch(e){return '';} })();
+      const savedExpiry = (() => { try{return localStorage.getItem(STORAGE_EXPIRY) || '';}catch(e){return '';} })();
 
       if(saved && savedExpiry && Date.parse(savedExpiry) > Date.now()){
         input.value = saved;
         await checkPasscode();
-
       }else if(saved){
         clearSaved();
         setMsg('Your previous passcode has expired. You can sign in with Google.');
       }
-
     }catch(e){
       console.error('Auth startup failed:', e);
       setMsg(e?.message || 'Unable to start login.');
@@ -12138,20 +12011,17 @@ document.getElementById('caldate')?.addEventListener('change',()=>{
 
   googleBtn.addEventListener('click', googleLogin);
   btn.addEventListener('click', checkPasscode);
-
-  input.addEventListener('keydown', e => {
-    if(e.key === 'Enter') checkPasscode();
-  });
+  input.addEventListener('keydown', e => { if(e.key === 'Enter') checkPasscode(); });
 
   if(sb){
     sb.auth.onAuthStateChange(async(event,session)=>{
       if(event === 'SIGNED_IN' && session?.user){
         try{
-          await finishWithEmail(session.user);
+          await finishGoogleLogin(session.user);
           cleanOAuthUrl();
         }catch(e){
-          console.error('License check failed:', e);
-          setMsg(e?.message || 'License check failed.');
+          console.error('Google session handling failed:', e);
+          setMsg(e?.message || 'Google login failed.');
           lockApp();
         }
       }else if(event === 'SIGNED_OUT'){
