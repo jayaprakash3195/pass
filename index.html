@@ -11996,29 +11996,21 @@ document.getElementById('caldate')?.addEventListener('change',()=>{
   }
 
   async function googleLogin(){
-    if(!sb){
-      setMsg('Supabase Auth library did not load.');
-      return;
-    }
-
     googleBtn.disabled = true;
     setMsg('Opening Google sign-in...', true);
 
     try{
       /*
-       * IMPORTANT:
-       * Always return to the live GitHub Pages site.
-       * This prevents the production OAuth flow from returning to
-       * localhost:3000 when the button is tested from a local copy.
+       * Use Supabase's OAuth authorize endpoint directly.
+       * This avoids browser/local-host redirect problems with
+       * signInWithOAuth() while keeping the callback on GitHub Pages.
        */
-      const {error} = await sb.auth.signInWithOAuth({
-        provider:'google',
-        options:{
-          redirectTo:PRODUCTION_REDIRECT
-        }
-      });
+      const authorizeUrl =
+        SUPABASE_URL.replace(/\/$/,'') +
+        '/auth/v1/authorize?provider=google&redirect_to=' +
+        encodeURIComponent(PRODUCTION_REDIRECT);
 
-      if(error) throw error;
+      window.location.assign(authorizeUrl);
 
     }catch(e){
       console.error('Google sign-in failed:', e);
